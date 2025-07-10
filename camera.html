@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Photo Booth</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      color: #444;
+      display: flex;
+      flex-direction: row;
+      min-height: 100vh;
+      animation: fadeIn 1s ease;
+      transition: background 0.5s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    main {
+      flex: 1;
+      padding: 20px;
+      text-align: center;
+      position: relative;
+    }
+
+    aside {
+      width: 300px;
+      background: #ffe4ec;
+      padding: 20px;
+      border-left: 4px solid #f8bbd0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    aside h3 {
+      color: #d63384;
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+    }
+
+    .photo-list, .saved-photos {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .photo-list img, .saved-photos img {
+      width: 100%;
+      border: 2px solid #f8bbd0;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      cursor: pointer;
+    }
+    
+
+    #zoomView {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border: 3px solid #f8bbd0;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+      display: none;
+      z-index: 10;
+    }
+
+    #zoomView img {
+      max-width: 100%;
+      max-height: 60vh;
+      border-radius: 12px;
+    }
+
+    #zoomButtons {
+      margin-top: 10px;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 25px;
+      background-color: #f06292;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #ec407a;
+    }
+
+    #video {
+      display: block;
+      margin: auto;
+      border: 4px solid #f8bbd0;
+      border-radius: 20px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+      transform: scaleX(-1);
+      position: relative;
+      z-index: 2;
+    }
+
+    #bgPreview {
+      position: absolute;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 640px;
+      height: 480px;
+      border-radius: 20px;
+      object-fit: cover;
+      z-index: 1;
+      display: none;
+      cursor: grab;
+    }
+
+    #canvas {
+      display: none;
+    }
+
+    .button-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    .auto-settings {
+      display: none;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 15px;
+    }
+
+    .auto-settings.show {
+      display: flex;
+    }
+
+    .auto-settings label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 14px;
+    }
+
+    .action-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .theme-picker label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 500;
+    }
+
+    .bg-uploader input[type="file"] {
+      display: none;
+    }
+  </style>
+</head>
+<body style="background: #fff0f5">
+  <main>
+    <img id="bgPreview">
+    <video id="video" width="640" height="480" autoplay></video>
+    <div class="button-row">
+      <button id="capture">💗 Chụp ảnh</button>
+      <button id="autoToggle">📸 Chụp tự động</button>
+    </div>
+    <div class="auto-settings" id="autoSettings">
+      <label>Số ảnh: <input type="number" id="autoCount" value="3" min="1" style="width: 60px;"></label>
+      <label>Mỗi <input type="number" id="autoDelay" value="2" min="1" style="width: 60px;"> giây</label>
+      <button id="startAutoCapture">Bắt đầu</button>
+    </div>
+    <div class="bg-uploader">
+      <input type="file" id="bgInput" accept="image/*">
+    </div>
+    <canvas id="canvas" width="640" height="480"></canvas>
+
+    <div id="zoomView">
+      <img id="zoomImg" src="">
+      <div id="zoomButtons">
+        <button id="saveImg">Lưu ảnh này</button>
+        <button id="deleteImg">Xóa ảnh này</button>
+        <button onclick="closeZoom()">Đóng</button>
+      </div>
+    </div>
+  </main>
+
+  <aside>
+    <div class="theme-picker">
+      <label for="bgColor">🎨 Đổi màu nền:
+        <input type="color" id="bgColor" value="#fff0f5">
+      </label>
+    </div>
+
+    <div>
+      <h3>🖼 8 Ảnh mới nhất</h3>
+      <div class="action-group">
+        <button onclick="saveAll()">Lưu tất cả</button>
+        <button onclick="deleteAll()">Xóa tất cả</button>
+      </div>
+      <div class="photo-list" id="photoList"></div>
+    </div>
+
+    <hr>
+
+    <div>
+      <h3>📂 Ảnh đã lưu</h3>
+      <div class="action-group">
+        <button onclick="downloadSelected()">Lưu ảnh đã chọn</button>
+        <button onclick="deleteSelected()">Xóa ảnh đã chọn</button>
+      </div>
+      <div class="saved-photos" id="savedPhotos"></div>
+    </div>
+  </aside>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+    const photoList = document.getElementById('photoList');
+    const savedPhotos = document.getElementById('savedPhotos');
+    const zoomView = document.getElementById('zoomView');
+    const zoomImg = document.getElementById('zoomImg');
+    const bgColorPicker = document.getElementById('bgColor');
+    const bgInput = document.getElementById('bgInput');
+    const autoSettings = document.getElementById('autoSettings');
+    const bgPreview = document.getElementById('bgPreview');
+
+    let currentZoomedImage = null;
+    let backgroundImage = null;
+    let isDragging = false;
+    let offsetX = 0, offsetY = 0;
+    let scale = 1;
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream)
+      .catch(err => alert("Không thể truy cập webcam"));
+
+    bgInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        backgroundImage = new Image();
+        backgroundImage.src = event.target.result;
+        bgPreview.src = event.target.result;
+        bgPreview.style.display = 'block';
+        bgPreview.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    bgPreview.addEventListener('mousedown', e => {
+      isDragging = true;
+      offsetX = e.offsetX;
+      offsetY = e.offsetY;
+      bgPreview.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      let rect = bgPreview.getBoundingClientRect();
+      bgPreview.style.left = `${e.clientX - offsetX}px`;
+      bgPreview.style.top = `${e.clientY - offsetY}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+      bgPreview.style.cursor = 'grab';
+    });
+
+    bgPreview.addEventListener('wheel', e => {
+      e.preventDefault();
+      scale += e.deltaY * -0.001;
+      scale = Math.min(Math.max(0.5, scale), 3);
+      bgPreview.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    });
+
+    function captureImage() {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      if (backgroundImage) {
+        context.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+      }
+      context.save();
+      context.translate(canvas.width, 0);
+      context.scale(-1, 1);
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      context.restore();
+
+      const img = new Image();
+      img.src = canvas.toDataURL('image/png');
+      img.onclick = () => openZoom(img);
+      photoList.prepend(img);
+      if (photoList.children.length > 8) {
+        photoList.removeChild(photoList.lastChild);
+      }
+    }
+
+    document.getElementById('capture').addEventListener('click', captureImage);
+
+    document.getElementById('autoToggle').addEventListener('click', () => {
+      autoSettings.classList.toggle('show');
+    });
+
+    document.getElementById('startAutoCapture').addEventListener('click', () => {
+      const count = parseInt(document.getElementById('autoCount').value);
+      const delay = parseInt(document.getElementById('autoDelay').value) * 1000;
+      let taken = 0;
+      autoSettings.classList.remove('show');
+      const interval = setInterval(() => {
+        captureImage();
+        taken++;
+        if (taken >= count) clearInterval(interval);
+      }, delay);
+    });
+
+    function openZoom(img) {
+      zoomView.style.display = 'block';
+      zoomImg.src = img.src;
+      currentZoomedImage = img;
+    }
+
+    function closeZoom() {
+      zoomView.style.display = 'none';
+      zoomImg.src = '';
+    }
+
+    document.getElementById('saveImg').onclick = () => {
+      const img = document.createElement('img');
+      img.src = zoomImg.src;
+      img.onclick = () => openZoom(img);
+      savedPhotos.prepend(img);
+      closeZoom();
+    };
+
+    document.getElementById('deleteImg').onclick = () => {
+      currentZoomedImage?.remove();
+      closeZoom();
+    };
+
+    function saveAll() {
+      [...photoList.children].forEach(node => {
+        const img = new Image();
+        img.src = node.src;
+        img.onclick = () => openZoom(img);
+        savedPhotos.appendChild(img);
+      });
+    }
+
+    function deleteAll() {
+      photoList.innerHTML = '';
+    }
+
+    function downloadSelected() {
+      [...savedPhotos.children].forEach(img => {
+        const a = document.createElement('a');
+        a.href = img.src;
+        a.download = 'photo.png';
+        a.click();
+      });
+    }   
+
+    function deleteSelected() {
+      savedPhotos.innerHTML = '';
+    }
+
+    bgColorPicker.addEventListener('input', (e) => {
+      document.body.style.background = e.target.value;
+    });
+  </script>
+</body>
+</html>
